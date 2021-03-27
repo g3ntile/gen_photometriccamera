@@ -1,7 +1,12 @@
 bl_info = {
     "name": "GEN Photometric Camera",
+    "author": "g3ntile",
     "blender": (2, 80, 0),
     "category": "Camera",
+    "location": "View3D > Properties panel > gen CAM",
+    "description": "Sets up the active camera exposure to react to aperture, speed, ISO, and EV like a physical camera",
+    "warning": "",
+    "doc_url": "",
 }
 
 import bpy
@@ -73,10 +78,64 @@ def genSetCamera (context):
     target.id = C.scene.camera.data.id_data
     target.data_path = '["EV"]'
 
-    driver.expression = "log (( 1/aperture ) ** 2 / (1/(1/fps * speed) )   , 2)  + log (iso) + ev + 2.564"
+    driver.expression = "log (( 1/aperture ) ** 2 / (1/(1/fps * speed) )   , 2)  + log (iso) + ev + 2.564 + 4"
+    # Sunny 16 rule: full sun exposure = aperture 16, iso 48, speed 48 (0.5 * 24fps)
 
     return {'FINISHED'}
-    
+
+class createPhotometricWorld(bpy.types.Operator):
+    """Links the exposure of the active camera to the aperture, speed, ISO, and EV values following real world formulas"""
+    bl_idname = "render.create_photometric_world"
+    bl_label = "Set up the Nishita World"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene is not None 
+
+    def execute(self, context):
+        C = context
+        bpy.ops.world.new()
+        C.scene.world = bpy.data.worlds[-1]
+        C.scene.world.use_nodes = True
+
+        #nodetree
+        nodes = C.scene.world.node_tree.nodes
+
+        # cleanup nodes
+        for node in nodes:
+            nodes.remove(node)
+
+        # output
+        outn = nodes.new (type='ShaderNodeOutputWorld' ) 
+        outn.location = 200,0
+
+        # background
+        bkgn = nodes.new (type='ShaderNodeBackground' )
+        bkgn.location = 0,0
+
+        # Sky
+        skyn = nodes.new (type= 'ShaderNodeTexSky')
+        skyn.location = -200,0
+        skyn.sky_type = 'NISHITA'
+
+        #Links
+        links = C.scene.world.node_tree.links
+
+        link = links.new(bkgn.outputs[0], outn.inputs[0])
+        link = links.new(skyn.outputs[0], bkgn.inputs[0])
+
+        #Sun Position
+        C.scene.sun_pos_properties.sky_texture = "Sky Texture"
+        
+        # Buenos Aires
+        C.scene.sun_pos_properties.latitude = -34
+        C.scene.sun_pos_properties.longitude = -58
+        C.scene.sun_pos_properties.UTC_zone = -3
+
+        return {'FINISHED'}
+
+
+
     
 class SetupGenCam(bpy.types.Operator):
     """Links the exposure of the active camera to the aperture, speed, ISO, and EV values following real world formulas"""
@@ -92,6 +151,25 @@ class SetupGenCam(bpy.types.Operator):
         genSetCamera(context)
         
         context.scene.camera.data.dof.aperture_fstop = 2.8
+
+        return {'FINISHED'}
+
+class setCamToSunny16(bpy.types.Operator):
+    """Sets the camera exposure following the Sunny 16 rule for exteriors"""
+    bl_idname = "render.gencam_to_s16"
+    bl_label = "Sunny 16"
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene is not None
+
+    def execute(self, context):
+        print( 'hello!')
+        #setCamToSunny16 (context)
+        scene = context.scene
+        scene.camera.data.dof.aperture_fstop = 16
+        scene.camera.data['ISO'] = int(scene.render.fps / scene.render.motion_blur_shutter)
+        scene.camera.data['EV'] = 0.0
 
         return {'FINISHED'}
 
@@ -119,6 +197,10 @@ class genCamPanel(bpy.types.Panel):
         row = layout.row(align=True)
         #row.operator("render.render") 
         row.operator("render.setup_gencam")
+        row = layout.row(align=True)
+        row.operator("render.gencam_to_s16")
+        row = layout.row(align=True)
+        row.operator("render.create_photometric_world")
         # Create a simple row.
         layout.label(text=scene.camera.name)
         
@@ -133,12 +215,16 @@ class genCamPanel(bpy.types.Panel):
 def register():
     bpy.utils.register_class(SetupGenCam)
     bpy.utils.register_class(genCamPanel)
+    bpy.utils.register_class(setCamToSunny16)
+    bpy.utils.register_class(createPhotometricWorld)
     
 
 
 def unregister():
     bpy.utils.unregister_class(SetupGenCam)
     bpy.utils.unregister_class(genCamPanel)
+    bpy.utils.unregister_class(setCamToSunny16)
+    bpy.utils.unregister_class(createPhotometricWorld)
     
 
 
