@@ -1,11 +1,12 @@
 bl_info = {
     "name": "GEN Photometric Camera",
-    "author": "g3ntile",
+    "author": "Pablo Gentile",
+    "version": (0, 0, 1),
     "blender": (2, 80, 0),
     "category": "Camera",
     "location": "View3D > Properties panel > gen CAM",
     "description": "Sets up the active camera exposure to react to aperture, speed, ISO, and EV like a physical camera",
-    "warning": "",
+    "warning": "This is alpha version",
     "doc_url": "",
 }
 
@@ -84,9 +85,9 @@ def genSetCamera (context):
     return {'FINISHED'}
 
 class createPhotometricWorld(bpy.types.Operator):
-    """Links the exposure of the active camera to the aperture, speed, ISO, and EV values following real world formulas"""
+    """Sets up a world with the Nishita sky model"""
     bl_idname = "render.create_photometric_world"
-    bl_label = "Set up the Nishita World"
+    bl_label = "Create photometric"
 
     @classmethod
     def poll(cls, context):
